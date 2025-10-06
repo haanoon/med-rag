@@ -1,0 +1,1200 @@
+COMPLETE PROJECT PLAN: INTELLIGENT MEDICAL RAG SYSTEM
+
+================================================================================
+OBJECTIVE
+================================================================================
+Develop and deploy a highly intelligent, safe, and source-backed Medical Question-Answering (QA) System utilizing Retrieval-Augmented Generation (RAG), a Knowledge Graph (KG), and robust safety mechanisms to prevent hallucinations and misinformation.
+
+================================================================================
+SUCCESS CRITERIA
+================================================================================
+
+1. Retrieval Precision at 5 (P@5): Greater than 0.80 (80% of top 5 documents are relevant)
+
+2. Answer Accuracy (ROUGE-L Score): Greater than 0.60 compared to expert-written answers
+
+3. Safety Rate: 100 percent (All answers must pass safety validation or be withheld/refused)
+
+4. Average Confidence Score: Greater than 0.75
+
+5. Response Time: Less than 3 seconds for 95 percent of queries
+
+6. User Satisfaction: Above 4 out of 5 from medical professionals for usefulness, accuracy, and safety
+
+================================================================================
+TECHNICAL STACK MANDATE
+================================================================================
+
+Primary Language: Python 3.9 or higher
+
+Vector Database: FAISS (IndexFlatL2 or IndexIVFFlat)
+
+Knowledge Graph (KG): Neo4j (using Docker container 'neo4j-medical' with credentials 'neo4j/medical123')
+
+Embeddings: BioBERT (dmis-lab/biobert-base-cased-v1.2) or PubMedBERT (microsoft/BiomedNLP-PubMedBERT-base-uncased-abstract-fulltext)
+
+LLM: OpenAI GPT-4 or Llama-2-Medical
+
+NLP/RAG Frameworks: scispaCy (en_core_sci_sm model) and Haystack/LangChain
+
+Backend API: FastAPI with Uvicorn
+
+Frontend UI: Streamlit
+
+Search Augmentation: Elasticsearch (Optional but recommended for hybrid search)
+
+Dependencies: Must install FAISS, sentence-transformers, scispaCy, Neo4j Python driver, NetworkX, FastAPI, Uvicorn, Streamlit, OpenAI, LangChain, Pandas, NumPy, Biopython, python-dotenv, Pydantic, requests, and Elasticsearch client
+
+================================================================================
+PHASE-BY-PHASE EXECUTION PLAN
+================================================================================
+
+--------------------------------------------------------------------------------
+PHASE 1: ENVIRONMENT SETUP, DATA ACQUISITION, AND PREPROCESSING
+--------------------------------------------------------------------------------
+
+ENVIRONMENT SETUP TASKS:
+
+1. Create 'medical-rag-system' project directory
+
+2. Set up Python 3.9 virtual environment
+
+3. Install all required dependencies:
+   - FAISS
+   - sentence-transformers
+   - scispaCy (en_core_sci_sm model)
+   - Neo4j Python driver
+   - NetworkX
+   - FastAPI
+   - Uvicorn
+   - Streamlit
+   - OpenAI
+   - LangChain
+   - Pandas
+   - NumPy
+   - Biopython
+   - python-dotenv
+   - Pydantic
+   - requests
+   - Elasticsearch client
+
+4. Set up Neo4j Docker container:
+   - Container name: 'neo4j-medical'
+   - Expose ports: 7474 and 7687
+   - Authentication: 'neo4j/medical123'
+
+5. Obtain necessary API keys:
+   - OpenAI API key
+   - PubMed E-utilities API key
+
+6. Sign up for UMLS Metathesaurus access
+
+7. Create full project directory structure:
+   - data/
+     - raw/
+     - processed/
+     - indices/
+   - src/
+     - retrieval/
+     - processing/
+     - generation/
+     - safety/
+     - api/
+   - ui/
+   - notebooks/
+   - tests/
+   - config/
+   - docker/
+   - scripts/
+
+DATA COLLECTION TASKS:
+
+1. Acquire UMLS Metathesaurus:
+   - Download MRCONSO.RRF (concepts and synonyms)
+   - Download MRREL.RRF (relationships)
+
+2. Download complete DrugBank XML database
+
+3. Download PubMed articles using Biopython's Entrez:
+   - Target: At least 10,000 articles
+   - Topics to cover:
+     - Diabetes
+     - Hypertension
+     - Cancer
+     - Cardiovascular diseases
+     - Antibiotic side effects
+     - Mental health
+     - Respiratory diseases
+     - Infectious diseases
+   - Extract fields:
+     - PMID
+     - Title
+     - Abstract
+     - Publication date
+     - Authors
+   - Save as: 'pubmed_articles.json'
+
+4. Download clinical guidelines:
+   - WHO guidelines (PDF/text)
+   - CDC guidelines (PDF/text)
+   - NICE guidelines (PDF/text)
+
+DATA PREPROCESSING TASKS:
+
+1. Create document processor class with methods to:
+   - Remove special characters
+   - Remove URLs
+   - Clean whitespace
+   - Normalize text
+
+2. Process PubMed articles:
+   - Combine title and abstract
+   - Create unified document format
+
+3. Implement document chunking:
+   - Chunk size: 300-500 words
+   - Overlap: 50 words
+   - Preserve metadata:
+     - Source ID
+     - Chunk index
+     - Publication date
+     - Document type
+
+4. Process clinical guidelines:
+   - Extract text from PDFs
+   - Split into logical sections
+   - Maintain section hierarchy
+
+5. Create master index file:
+   - Map document IDs to source metadata
+   - Track document provenance
+   - Enable traceability
+
+6. Save all processed documents:
+   - Format: Consistent JSON structure
+   - Location: data/processed/
+   - Include metadata for each chunk
+
+--------------------------------------------------------------------------------
+PHASE 2: KNOWLEDGE GRAPH CONSTRUCTION (NEO4J)
+--------------------------------------------------------------------------------
+
+UMLS/DRUGBANK PARSING:
+
+1. Parse UMLS MRCONSO.RRF:
+   - Extract English terms only
+   - Extract synonyms for each concept
+   - Extract Concept Unique Identifiers (CUIs)
+
+2. Categorize UMLS concepts into 8 entity types based on semantic types:
+   - Disease
+   - Symptom
+   - Drug
+   - Procedure
+   - Anatomy
+   - Lab Test
+   - Gene
+   - Pathogen
+
+3. Parse UMLS MRREL.RRF for relationships:
+   - TREATS (Drug -> Disease)
+   - HAS_FINDING (Disease -> Symptom)
+   - CONTRAINDICATED_WITH (Drug -> Drug)
+   - SYMPTOM_OF (Symptom -> Disease)
+   - DIAGNOSED_BY (Disease -> Procedure)
+   - AFFECTS (Drug -> Anatomy)
+   - PREVENTS (Drug -> Disease)
+   - CAUSED_BY (Disease -> Pathogen)
+
+4. Parse DrugBank XML:
+   - Extract drug entities:
+     - Drug ID
+     - Drug name
+     - Description
+     - Synonyms
+   - Extract drug-drug interactions
+   - Extract indications
+   - Extract side effects
+   - Extract contraindications
+
+NEO4J LOADING:
+
+1. Connect to Neo4j database:
+   - URI: bolt://localhost:7687
+   - Username: neo4j
+   - Password: medical123
+
+2. Create database constraints:
+   - Unique constraints on entity IDs
+   - Unique constraints on CUIs
+
+3. Create database indexes:
+   - Index on name properties for fast lookup
+   - Index on type properties
+
+4. Load entities into Neo4j:
+   - Drug nodes
+   - Disease nodes
+   - Symptom nodes
+   - Procedure nodes
+   - Anatomy nodes
+   - Lab Test nodes
+   - Gene nodes
+   - Pathogen nodes
+
+5. Create relationships:
+   - TREATS (Drug -> Disease)
+   - HAS_SIDE_EFFECT (Drug -> Symptom)
+   - INTERACTS_WITH (Drug -> Drug)
+   - SYMPTOM_OF (Symptom -> Disease)
+   - DIAGNOSED_BY (Disease -> Procedure/Lab Test)
+   - AFFECTS (Drug -> Anatomy)
+   - PREVENTS (Drug -> Disease)
+   - CAUSED_BY (Disease -> Pathogen)
+
+KG AUGMENTATION:
+
+1. Install scispaCy with entity linking to UMLS:
+   - Model: en_core_sci_sm
+   - Entity linker: en_ner_bc5cdr_md
+
+2. Write entity extraction module:
+   - Use scispaCy NER
+   - Process sample of 1000 PubMed articles
+   - Extract medical entities
+
+3. Link identified entities to UMLS CUIs:
+   - Use scispaCy entity linker
+   - Map entities to standard concepts
+
+4. Implement relationship extraction:
+   - Use dependency parsing
+   - Extract subject-predicate-object triples
+   - Identify medical relationships
+
+5. Add newly extracted entities and relationships to Neo4j:
+   - Mark with lower confidence scores
+   - Track source documents
+   - Enable provenance tracking
+
+VALIDATION:
+
+1. Create validation script to check:
+   - Database consistency
+   - Orphaned nodes (nodes without relationships)
+   - Duplicate entries
+   - Invalid relationships
+
+2. Generate statistics:
+   - Total node count by type
+   - Total relationship count by type
+   - Graph density metrics
+   - Average node degree
+   - Connected components analysis
+
+3. Create visualization samples:
+   - Sample subgraphs
+   - Relationship distribution
+   - Entity type distribution
+
+--------------------------------------------------------------------------------
+PHASE 3: VECTOR DATABASE & RETRIEVAL ENGINE
+--------------------------------------------------------------------------------
+
+VECTOR DB CONSTRUCTION:
+
+1. Load processed document chunks from data/processed/
+
+2. Initialize embedding model:
+   - Model choice: BioBERT (dmis-lab/biobert-base-cased-v1.2) OR
+   - Alternative: PubMedBERT (microsoft/BiomedNLP-PubMedBERT-base-uncased-abstract-fulltext)
+   - Dimension: 768
+
+3. Encode all document chunks:
+   - Generate 768-dimensional embeddings
+   - Batch processing for efficiency
+   - Store embeddings with chunk IDs
+
+4. Create FAISS index:
+   - Index type: IndexFlatL2 OR IndexIVFFlat
+   - Add all embeddings to index
+   - Optimize for search performance
+
+5. Create metadata store:
+   - Map chunk IDs to metadata
+   - Storage: Pickle file or SQLite database
+   - Include: source, chunk_index, date, type, text
+
+6. Save FAISS index to disk:
+   - Location: data/indices/faiss.index
+   - Save metadata store separately
+
+7. Set up Elasticsearch (Optional):
+   - Create index for keyword search
+   - Index all document chunks
+   - Configure BM25 scoring
+   - Enable hybrid search capability
+
+QUERY UNDERSTANDING MODULE:
+
+1. Create query processor class with methods for:
+   - Entity extraction
+   - Intent classification
+   - Query expansion
+   - Abbreviation expansion
+
+2. Implement entity extraction:
+   - Use scispaCy for NER
+   - Extract medical entities from query
+   - Map entities to UMLS CUIs
+
+3. Implement intent classification:
+   - Categories:
+     - side_effects
+     - treatment
+     - diagnosis
+     - dosage
+     - drug_interaction
+     - prognosis
+     - general
+   - Use rule-based or ML classifier
+   - Return intent with confidence score
+
+4. Implement query expansion:
+   - Query Neo4j using extracted entities
+   - Hop distance: 1-2 hops
+   - Find related concepts:
+     - Synonyms
+     - Related drugs
+     - Related diseases
+   - Add expansion terms to retrieval query
+
+5. Implement abbreviation expansion:
+   - Medical abbreviation dictionary
+   - Expand common medical abbreviations
+   - Improve retrieval recall
+
+6. Test query understanding:
+   - Create test set of 50 diverse medical questions
+   - Validate entity extraction accuracy
+   - Validate intent classification accuracy
+   - Measure query expansion effectiveness
+
+RETRIEVAL ENGINE:
+
+1. Create Semantic Retriever:
+   - Use FAISS index for vector search
+   - Top K results: 10-20 documents
+   - Return similarity scores
+   - Return document metadata
+
+2. Create Keyword Retriever (Optional):
+   - Use Elasticsearch for BM25 search
+   - Top K results: 10-20 documents
+   - Return relevance scores
+   - Return document metadata
+
+3. Implement Hybrid Retriever:
+   - Combine semantic and keyword results
+   - Weighted scoring formula:
+     - alpha = 0.7 (semantic weight)
+     - (1-alpha) = 0.3 (keyword weight)
+   - Normalize scores to [0, 1]
+   - Merge and deduplicate results
+   - Return top combined results
+
+4. Implement result re-ranking:
+   - Use Cross-Encoder Model
+   - Re-rank top 20 results
+   - Select final 5-10 most relevant passages
+   - Improve precision at top ranks
+
+RETRIEVAL EVALUATION:
+
+1. Create evaluation test set:
+   - 100 medical questions
+   - Known relevant documents for each
+   - Ground truth relevance labels
+
+2. Measure Precision at K (P@K):
+   - P@5: Precision at 5 documents
+   - P@10: Precision at 10 documents
+   - Target: P@5 > 0.80
+
+3. Measure Recall at K:
+   - How many relevant docs in top K
+   - Analyze coverage
+
+4. Measure Mean Reciprocal Rank (MRR):
+   - Position of first relevant result
+   - Higher is better
+
+5. Generate retrieval evaluation report:
+   - Document metrics
+   - Identify failure cases
+   - Suggest improvements
+
+--------------------------------------------------------------------------------
+PHASE 4: ANSWER GENERATION AND SAFETY & VALIDATION
+--------------------------------------------------------------------------------
+
+ANSWER GENERATION MODULE:
+
+1. Set up LLM client:
+   - Option 1: OpenAI GPT-4 API client
+   - Option 2: Llama-2-Medical local model
+   - Configure API authentication
+
+2. Create answer generator class with methods for:
+   - Prompt construction
+   - LLM invocation
+   - Response parsing
+   - Source citation formatting
+
+3. Design intent-specialized system prompts:
+   - side_effects prompt: Focus on adverse reactions, severity, frequency
+   - treatment prompt: Focus on efficacy, guidelines, alternatives
+   - diagnosis prompt: Focus on symptoms, tests, differential diagnosis
+   - dosage prompt: Focus on dosing guidelines, adjustments, safety
+   - drug_interaction prompt: Focus on interaction mechanisms, severity, management
+   - prognosis prompt: Focus on outcomes, survival rates, factors
+   - general prompt: Balanced medical information
+
+4. Implement core prompt instructions:
+   - Answer ONLY based on provided context
+   - CITE sources using numbered references [Source 1], [Source 2]
+   - State clearly if information is insufficient
+   - Include relevant warnings and disclaimers
+   - Avoid speculation or extrapolation
+
+5. Configure generation parameters:
+   - Temperature: 0.1-0.3 (low for consistency)
+   - max_tokens: ~500 (concise answers)
+   - top_p: 0.9
+   - frequency_penalty: 0.0
+
+6. Implement source citation:
+   - Format: [Source 1], [Source 2]
+   - Map citations to retrieved passages
+   - Provide source metadata with answer
+
+SELF-REFLECTION:
+
+1. Implement second LLM call for answer evaluation:
+   - Evaluate answer grounding in context
+   - Detect speculation or hallucination
+   - Assess answer completeness
+
+2. Assign Confidence Level:
+   - Scale: 0.0 to 1.0
+   - Based on:
+     - Grounding score
+     - Source relevance
+     - Answer completeness
+     - Absence of speculation
+
+3. Implement iterative refinement:
+   - If confidence < 0.5:
+     - Retrieve additional context
+     - Reformulate query
+     - Regenerate answer
+   - Maximum iterations: 2-3
+
+4. Track reflection metrics:
+   - Confidence distribution
+   - Refinement success rate
+   - Iteration counts
+
+SAFETY AND VALIDATION MODULE:
+
+1. Create safety validator class with methods for:
+   - Unsafe phrase detection
+   - Source citation verification
+   - Knowledge graph fact-checking
+   - Confidence thresholding
+   - Warning generation
+
+2. Implement unsafe phrase detection:
+   - Dangerous claims:
+     - "guaranteed to work"
+     - "cure for cancer"
+     - "miracle cure"
+   - Harmful advice:
+     - "stop taking your medication"
+     - "ignore your doctor"
+     - "no need to see a doctor"
+   - Unqualified statements:
+     - "always", "never" (in medical context)
+   - Flag and reject answers containing unsafe phrases
+
+3. Implement source citation verification:
+   - Check that answer contains at least one source reference
+   - Verify cited information exists in referenced passage
+   - Grounding verification: Calculate overlap between answer and sources
+   - Minimum grounding threshold: 70%
+
+4. Implement KG fact-checking:
+   - Extract key medical claims from answer
+   - Query Neo4j to verify relationships:
+     - Drug-disease treatment relationships
+     - Drug-drug interactions
+     - Drug side effects
+   - Flag inconsistencies with knowledge graph
+
+5. Implement confidence thresholding:
+   - Minimum confidence: 0.3
+   - Below threshold: Withhold answer
+   - Return message: "Insufficient information to provide a safe answer"
+
+6. Implement automatic medical disclaimers:
+   - Add to all answers:
+     - "This information is for educational purposes only"
+     - "Consult a healthcare professional for medical advice"
+     - "Do not use as a substitute for professional medical care"
+
+7. Implement warning system:
+   - Warning levels:
+     - INFO: General medical information
+     - WARNING: Requires medical supervision
+     - ERROR: Potentially dangerous query/answer
+   - Color-coded display in UI
+
+8. Implement answer filtering for high-risk topics:
+   - Suicide or self-harm queries
+   - Dangerous drug combinations
+   - Requests to self-diagnose serious conditions
+   - Return supportive message with crisis resources
+
+GENERATION EVALUATION:
+
+1. Create evaluation test set:
+   - 100 medical questions
+   - Expert-written reference answers
+   - Ground truth labels
+
+2. Measure ROUGE scores:
+   - ROUGE-L: Longest common subsequence
+   - Target: ROUGE-L > 0.60
+   - Compare generated vs reference answers
+
+3. Measure semantic similarity:
+   - Use sentence embeddings
+   - Cosine similarity to reference
+   - Complementary to ROUGE
+
+4. Manual quality rating (1-5 scale):
+   - Accuracy: Medical correctness
+   - Relevance: Answers the question
+   - Safety: Appropriate disclaimers and warnings
+   - Completeness: Sufficient information
+   - Clarity: Easy to understand
+
+5. Generate evaluation report:
+   - Aggregate metrics
+   - Identify common failure modes
+   - Document edge cases
+   - Suggest improvements
+
+--------------------------------------------------------------------------------
+PHASE 5: API, UI, AND DEPLOYMENT
+--------------------------------------------------------------------------------
+
+API AND INTEGRATION (FASTAPI):
+
+1. Create main RAG pipeline:
+   - Integrate all components
+   - Sequential orchestration:
+     1. Query Understanding
+     2. Retrieval
+     3. Re-ranking
+     4. Generation
+     5. Self-Reflection
+     6. Safety Validation
+
+2. Define Pydantic request model:
+   - user_question: str (required)
+   - top_k: int (optional, default=5)
+   - filters: dict (optional)
+   - Additional fields:
+     - conversation_id: str
+     - user_id: str
+
+3. Define Pydantic response model:
+   - answer: str
+   - sources: List[Source]
+     - source_id: str
+     - text: str
+     - metadata: dict
+   - confidence: float
+   - warnings: List[str]
+   - safety_flag: str (SAFE, WARNING, UNSAFE)
+   - intent: str
+   - processing_time: float
+
+4. Implement error handling:
+   - Try-catch blocks for each component
+   - Graceful degradation
+   - User-friendly error messages
+   - Log errors for debugging
+
+5. Implement logging:
+   - Request logging
+   - Component-level timing
+   - Error logging
+   - User interaction logging
+
+6. Implement rate limiting:
+   - Per-user limits
+   - Per-IP limits
+   - Prevent abuse
+
+7. Add supplementary endpoints:
+   - GET /health: Health check endpoint
+   - POST /kg/query: Direct knowledge graph queries
+   - POST /extract_entities: Entity extraction service
+   - GET /metrics: System metrics and statistics
+
+8. Implement API authentication:
+   - API key validation
+   - User authentication
+   - Role-based access control
+
+USER INTERFACE (STREAMLIT):
+
+1. Design main UI layout:
+   - Clean, medical-themed interface
+   - Header with logo and title
+   - Main content area
+   - Sidebar for options
+
+2. Implement query input section:
+   - Large text input box
+   - "Ask Question" button
+   - Example questions as clickable buttons:
+     - "What are the side effects of aspirin?"
+     - "How is Type 2 diabetes diagnosed?"
+     - "What medications treat hypertension?"
+
+3. Implement answer display section:
+   - Prominent answer text display
+   - Markdown rendering support
+   - Clear typography
+
+4. Implement confidence score display:
+   - Visual confidence meter
+   - Color-coded:
+     - Green: > 0.75 (High confidence)
+     - Yellow: 0.5-0.75 (Medium confidence)
+     - Red: < 0.5 (Low confidence)
+   - Numerical value display
+
+5. Implement warnings and safety indicator:
+   - Icon-based indicators:
+     - Green check: SAFE
+     - Yellow warning: WARNING
+     - Red alert: UNSAFE
+   - Warning message display
+   - Safety level explanation
+
+6. Implement expandable source section:
+   - "View Sources" expander
+   - Numbered source list [1], [2], [3]
+   - Each source shows:
+     - Source text (highlighted relevant portions)
+     - Metadata (PMID, date, source type)
+     - Link to original (if available)
+
+7. Implement medical disclaimer:
+   - Prominent display at bottom
+   - Clear, legally compliant language
+   - Always visible
+
+8. Implement additional features:
+   - Query history (sidebar)
+   - Favorite/save answers
+   - Export answer as PDF
+   - Feedback mechanism
+
+DEPLOYMENT TASKS:
+
+1. Create Dockerfile for FastAPI backend:
+   - Base image: python:3.9-slim
+   - Install dependencies
+   - Copy source code
+   - Expose port 8000
+   - CMD: uvicorn app:app --host 0.0.0.0 --port 8000
+
+2. Create Dockerfile for Streamlit UI:
+   - Base image: python:3.9-slim
+   - Install dependencies
+   - Copy UI code
+   - Expose port 8501
+   - CMD: streamlit run app.py
+
+3. Create docker-compose.yml:
+   - Services:
+     - neo4j: Neo4j database
+     - elasticsearch: Elasticsearch (optional)
+     - api: FastAPI backend
+     - ui: Streamlit frontend
+   - Configure networking:
+     - Internal network for services
+     - Expose UI port to host
+   - Configure volume mounts:
+     - Data persistence for Neo4j
+     - FAISS indices volume
+     - Configuration files
+   - Configure environment variables:
+     - API keys (from .env file)
+     - Database credentials
+     - Service URLs
+
+4. Create .env file template:
+   - OPENAI_API_KEY=your_key_here
+   - PUBMED_API_KEY=your_key_here
+   - NEO4J_URI=bolt://neo4j:7687
+   - NEO4J_USER=neo4j
+   - NEO4J_PASSWORD=medical123
+   - FAISS_INDEX_PATH=/data/indices/faiss.index
+   - ELASTICSEARCH_URL=http://elasticsearch:9200
+
+5. Write deployment documentation:
+   - Prerequisites
+   - Installation steps
+   - Configuration guide
+   - Running the system
+   - Troubleshooting
+
+6. Set up monitoring (Prometheus/Grafana):
+   - Metrics to track:
+     - Request rate
+     - Response time
+     - Error rate
+     - Component latencies
+     - Cache hit rates
+   - Dashboards:
+     - System overview
+     - Performance metrics
+     - Error tracking
+   - Alerting rules
+
+7. Implement backup strategy:
+   - Neo4j database backups:
+     - Daily automated backups
+     - Backup retention policy
+   - FAISS indices backups:
+     - Backup after updates
+     - Version control
+   - Configuration backups:
+     - Version-controlled configs
+
+8. Implement logging and monitoring:
+   - Centralized logging
+   - Log aggregation
+   - Performance monitoring
+   - User behavior analytics
+
+--------------------------------------------------------------------------------
+PHASE 6: EVALUATION AND QUALITY ASSURANCE
+--------------------------------------------------------------------------------
+
+TEST DATASET:
+
+1. Create comprehensive test dataset:
+   - Total questions: At least 100
+   - Diverse topics:
+     - Drug information (20 questions)
+     - Diagnosis questions (20 questions)
+     - Treatment questions (20 questions)
+     - Side effects (15 questions)
+     - Drug interactions (15 questions)
+     - Prognosis (10 questions)
+
+2. Manually identify ground truth:
+   - Relevant source documents for each question
+   - Expert-written reference answers
+   - Expected confidence levels
+
+3. Include edge cases:
+   - Ambiguous questions
+   - Questions with insufficient information
+   - Questions requiring warnings
+   - High-risk topics
+
+QUALITY ASSURANCE:
+
+1. Conduct code reviews:
+   - Peer review of all major components
+   - Security review
+   - Performance review
+
+2. Use linting tools:
+   - flake8: Style checking
+   - pylint: Code quality
+   - black: Code formatting
+
+3. Type checking:
+   - mypy: Static type checking
+   - Ensure type hints throughout
+
+4. Security scanning:
+   - bandit: Security vulnerability scanning
+   - Check for common security issues
+
+5. Test diverse query types:
+   - Medical jargon and terminology
+   - Queries with typos
+   - Ambiguous queries
+   - Multi-part questions
+   - Questions in different formats
+
+6. Performance testing:
+   - Load testing
+   - Stress testing
+   - Latency measurement
+
+METRICS CALCULATION:
+
+1. Calculate Retrieval Precision at 5 (P@5):
+   - Run retrieval on test set
+   - Evaluate top 5 documents for relevance
+   - Calculate: (Relevant docs in top 5) / 5
+   - Target: > 0.80
+
+2. Calculate Answer Accuracy (ROUGE-L):
+   - Generate answers for test set
+   - Compare to expert reference answers
+   - Calculate ROUGE-L scores
+   - Target: > 0.60
+
+3. Calculate Safety Rate:
+   - All answers must pass safety validation
+   - Target: 100%
+   - Track:
+     - Answers withheld
+     - Warnings issued
+     - Unsafe answers blocked
+
+4. Calculate Average Confidence Score:
+   - Average confidence across all answers
+   - Target: > 0.75
+   - Analyze distribution
+
+5. Measure Response Time:
+   - End-to-end latency
+   - Component-level timing
+   - Target: < 3 seconds for 95% of queries
+   - Percentile analysis (p50, p95, p99)
+
+6. Measure User Satisfaction:
+   - Survey medical professionals
+   - Rating scale: 1-5
+   - Categories:
+     - Usefulness
+     - Accuracy
+     - Safety
+   - Target: Average > 4.0
+
+ABLATION STUDIES:
+
+1. Study impact of components:
+   - Retrieval with vs without KG expansion
+   - Semantic vs Hybrid retrieval
+   - With vs without re-ranking
+   - With vs without self-reflection
+   - With vs without safety validation
+
+2. Study parameter sensitivity:
+   - Number of retrieved documents (K)
+   - Hybrid retrieval weights (alpha)
+   - Confidence thresholds
+   - Generation temperature
+
+3. Document findings:
+   - Component contributions
+   - Optimal parameter settings
+   - Trade-offs
+
+GENERATE EVALUATION REPORT:
+
+1. Executive Summary:
+   - Key findings
+   - Success criteria achievement
+   - Overall performance
+
+2. Detailed Metrics:
+   - All success criteria metrics
+   - Comparison to targets
+   - Statistical significance
+
+3. Component Analysis:
+   - Query Understanding performance
+   - Retrieval effectiveness
+   - Generation quality
+   - Safety validation effectiveness
+
+4. Strengths:
+   - What works well
+   - Novel contributions
+   - Competitive advantages
+
+5. Weaknesses:
+   - Failure modes
+   - Edge cases
+   - Limitations
+
+6. Improvements:
+   - Short-term improvements
+   - Long-term enhancements
+   - Research directions
+
+7. Conclusions:
+   - Summary
+   - Recommendations
+   - Next steps
+
+DOCUMENTATION:
+
+1. Write comprehensive technical documentation:
+   - Project overview
+   - System architecture
+   - Component descriptions
+   - Data flow diagrams
+
+2. Create architecture diagrams:
+   - High-level system architecture
+   - Component interaction diagram
+   - Data pipeline diagram
+   - Deployment architecture
+
+3. Document features:
+   - Core features list
+   - Feature descriptions
+   - Use cases
+
+4. Write installation guide:
+   - Prerequisites
+   - Step-by-step installation
+   - Configuration
+   - Verification
+
+5. Write usage guide:
+   - How to use the API
+   - How to use the UI
+   - Example queries
+   - Best practices
+
+6. Document Knowledge Graph schema:
+   - Node types
+   - Relationship types
+   - Properties
+   - Constraints and indexes
+
+7. Document data sources:
+   - UMLS details
+   - DrugBank details
+   - PubMed collection details
+   - Clinical guidelines sources
+
+8. Include evaluation report:
+   - As part of documentation
+   - Metrics and benchmarks
+   - Performance analysis
+
+9. Write deployment guide:
+   - Docker deployment
+   - Kubernetes deployment (optional)
+   - Cloud deployment options
+   - Scaling considerations
+
+10. Use inline code comments and docstrings:
+    - All classes documented
+    - All functions documented
+    - Complex logic explained
+    - Follow Google or NumPy docstring style
+
+================================================================================
+IMPLEMENTATION NOTES
+================================================================================
+
+DEVELOPMENT BEST PRACTICES:
+
+1. Version Control:
+   - Use Git for version control
+   - Meaningful commit messages
+   - Feature branches
+   - Code reviews before merge
+
+2. Testing:
+   - Unit tests for all components
+   - Integration tests
+   - End-to-end tests
+   - Test coverage > 80%
+
+3. Code Quality:
+   - Follow PEP 8 style guide
+   - Use type hints
+   - Write clean, readable code
+   - Avoid code duplication
+
+4. Documentation:
+   - Document as you code
+   - Keep documentation up-to-date
+   - Include examples
+   - API documentation
+
+5. Error Handling:
+   - Comprehensive error handling
+   - Meaningful error messages
+   - Logging
+   - Graceful degradation
+
+SCALABILITY CONSIDERATIONS:
+
+1. Caching:
+   - Cache frequent queries
+   - Cache embeddings
+   - Cache KG query results
+
+2. Batch Processing:
+   - Batch embedding generation
+   - Batch retrieval
+   - Parallel processing where possible
+
+3. Database Optimization:
+   - Neo4j indexes
+   - FAISS index optimization
+   - Query optimization
+
+4. Load Balancing:
+   - API load balancing
+   - Service replication
+   - Horizontal scaling
+
+SECURITY CONSIDERATIONS:
+
+1. API Security:
+   - Authentication
+   - Authorization
+   - Rate limiting
+   - Input validation
+
+2. Data Security:
+   - Encrypt sensitive data
+   - Secure API keys
+   - HIPAA compliance considerations
+   - User data privacy
+
+3. Medical Liability:
+   - Clear disclaimers
+   - Not for diagnostic use
+   - Professional consultation required
+   - Terms of service
+
+MAINTENANCE PLAN:
+
+1. Regular Updates:
+   - Update dependencies
+   - Security patches
+   - Model updates
+   - Data updates
+
+2. Monitoring:
+   - System health monitoring
+   - Performance monitoring
+   - Error monitoring
+   - User feedback monitoring
+
+3. Continuous Improvement:
+   - Analyze user queries
+   - Identify failure patterns
+   - Improve retrieval
+   - Improve generation
+   - Expand knowledge base
+
+================================================================================
+TIMELINE ESTIMATE
+================================================================================
+
+Phase 1 (Environment & Data): 2-3 weeks
+Phase 2 (Knowledge Graph): 2-3 weeks
+Phase 3 (Vector DB & Retrieval): 2-3 weeks
+Phase 4 (Generation & Safety): 2-3 weeks
+Phase 5 (API, UI, Deployment): 1-2 weeks
+Phase 6 (Evaluation & QA): 1-2 weeks
+
+Total Estimated Time: 10-16 weeks (2.5-4 months)
+
+================================================================================
+RESOURCES REQUIRED
+================================================================================
+
+Human Resources:
+- 1-2 Backend Python Developers
+- 1 ML/NLP Engineer
+- 1 DevOps Engineer
+- 1 Medical Domain Expert (consultant)
+- 1 QA Engineer
+
+Computational Resources:
+- GPU for embedding generation (Tesla T4 or better)
+- 32GB+ RAM for development
+- 100GB+ storage for data
+- Cloud hosting for deployment
+
+Data Resources:
+- UMLS license
+- DrugBank license
+- PubMed access
+- Clinical guidelines
+
+API/Service Costs:
+- OpenAI API credits
+- Cloud hosting costs
+- Domain and SSL certificates
+
+================================================================================
+RISK FACTORS AND MITIGATION
+================================================================================
+
+Risk 1: Data acquisition delays
+Mitigation: Start UMLS/DrugBank registration early, have alternative data sources ready
+
+Risk 2: Model performance below targets
+Mitigation: Experiment with multiple models, fine-tuning, prompt engineering
+
+Risk 3: Latency exceeds 3 seconds
+Mitigation: Optimize retrieval, use caching, parallel processing
+
+Risk 4: Safety validation insufficient
+Mitigation: Multiple validation layers, conservative thresholds, expert review
+
+Risk 5: Scope creep
+Mitigation: Strictly follow phase plan, document future enhancements separately
+
+Risk 6: Medical liability concerns
+Mitigation: Strong disclaimers, legal review, clear limitations documentation
+
+================================================================================
+SUCCESS INDICATORS
+================================================================================
+
+Technical Success:
+- All success criteria metrics met
+- System passes load testing
+- No critical bugs in production
+
+User Success:
+- Positive feedback from medical professionals
+- High user satisfaction scores
+- Repeat usage
+
+Business Success:
+- Deployable system
+- Comprehensive documentation
+- Maintainable codebase
+- Scalable architecture
+
+================================================================================
+END OF PROJECT PLAN
+================================================================================
